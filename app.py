@@ -11,22 +11,26 @@ st.set_page_config(
 
 engine = FootballBettingEngine()
 
-st.title("⚽ Football Betting Assistant: Calendario & Analisi 1X2")
+st.title("⚽ Football Betting Assistant: API-Football Live & Analisi 1X2")
 st.markdown("""
-App professionale ispirata ai modelli di analisi statistica avanzata: consulta il **Calendario Partite**, 
-applica i **Filtri di Contesto** (Campo e tipologia di avversaria) e calcola le probabilità **1X2** 
-per **Tiri in Porta, Calci d'Angolo, Falli, Fuorigioco e Cartellini**.
+App professionale per l'analisi statistica e il calcolo delle probabilità **1X2** 
+su **Tiri in Porta, Calci d'Angolo, Falli, Fuorigioco e Cartellini**, integrata direttamente con **API-Football**.
 """)
 
 st.divider()
 
-# --- SIDEBAR: SELEZIONE COMPETIZIONE E FILTRI ---
+# --- SIDEBAR: API KEY & FILTRI ---
+st.sidebar.header("🔑 Configurazione API")
+api_key_input = st.sidebar.text_input("Inserisci API-Football Key:", type="password", help="Inserisci qui la tua chiave API di RapidAPI / API-Football")
+
+st.sidebar.divider()
 st.sidebar.header("⚙️ Gestione Partita & Filtri")
 
 competitions = engine.get_supported_competitions()
 selected_competition = st.sidebar.selectbox("1. Seleziona Competizione:", competitions)
 
-matches = engine.get_calendar_matches(selected_competition)
+# Passa la chiave API alla funzione per scaricare le partite reali
+matches = engine.get_calendar_matches(selected_competition, api_key=api_key_input)
 match_options = [f"{m['Giornata']} | {m['Casa']} vs {m['Trasferta']} ({m['Data']})" for m in matches]
 
 selected_match_str = st.sidebar.selectbox("2. Seleziona Partita dal Calendario:", match_options)
@@ -96,7 +100,7 @@ if home_team and away_team:
 
     with tab_statistiche:
         st.markdown("### 📈 Approfondimento Storico e Medie Squadra")
-        st.info("Qui vengono confrontate le medie complessive delle due squadre nelle ultime uscite della competizione selezionata.")
+        st.info("Qui vengono confrontate le medie complessive delle due squadre nella competizione selezionata.")
         
         comparison_df = pd.DataFrame([
             {"Metrica": "Gol Fatti / Subiti", f"{home_team}": "1.37 / 1.10", f"{away_team}": "1.49 / 2.30"},
