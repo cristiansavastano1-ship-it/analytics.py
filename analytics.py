@@ -5,7 +5,7 @@ import requests
 
 class FootballBettingEngine:
     def __init__(self):
-        # Mappatura delle competizioni con i rispettivi ID ufficiali di API-Football
+        # Mappatura delle competizioni con gli ID ufficiali di API-Football (API-Sports)
         self.competitions = {
             "Serie A (Italia)": 135,
             "Premier League (Inghilterra)": 39,
@@ -21,28 +21,32 @@ class FootballBettingEngine:
 
     def get_calendar_matches(self, competition_name, api_key=None):
         """
-        Scarica in automatico le prossime partite reali tramite API-Football 
-        usando la chiave fornita dall'utente dall'interfaccia.
+        Scarica le partite reali usando l'endpoint ufficiale di API-Football (api-sports.io).
         """
         league_id = self.competitions.get(competition_name, 135)
 
         if not api_key:
             return [
-                {"Giornata": "Attesa API Key", "Data": "Inserisci la tua", "Casa": "API-Football Key", "Trasferta": "nella barra laterale a sinistra"}
+                {"Giornata": "Attesa API Key", "Data": "Inserisci la tua", "Casa": "API-Football Key", "Trasferta": "nella barra laterale"}
             ]
 
-        url = "https://api-football-v1.p.rapidapi.com/v3/fixtures"
+        # Endpoint ufficiale e sicuro di API-Football / API-Sports
+        url = "https://v3.football.api-sports.io/fixtures"
         querystring = {"league": str(league_id), "next": "10"}
         
         headers = {
-            "X-RapidAPI-Key": api_key,
-            "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"
+            "x-apisports-key": api_key
         }
 
         try:
             response = requests.get(url, headers=headers, params=querystring, timeout=5)
             data = response.json()
             
+            # Controllo se ci sono errori restituiti dall'API
+            if "errors" in data and data["errors"]:
+                print(f"Errore API: {data['errors']}")
+                return [{"Giornata": "Errore API", "Data": "Verifica", "Casa": "Chiave non valida o", "Trasferta": "limite giornaliero esaurito"}]
+
             matches = []
             if "response" in data and len(data["response"]) > 0:
                 for match in data["response"]:
@@ -59,10 +63,10 @@ class FootballBettingEngine:
                     })
                 return matches
         except Exception as e:
-            print(f"Errore connessione API: {e}")
+            print(f"Errore di rete: {e}")
 
         return [
-            {"Giornata": "Errore Connessione", "Data": "Verifica", "Casa": "Controlla la chiave API", "Trasferta": "o la rete"}
+            {"Giornata": "Nessuna Partita Trovata", "Data": "Controlla", "Casa": "Connessione o", "Trasferta": "chiave API inserita"}
         ]
 
     def calculate_poisson_1x2(self, lambda_home, lambda_away):
@@ -93,9 +97,7 @@ class FootballBettingEngine:
         }
 
     def get_detailed_match_stats(self, home_team, away_team, filter_campo, filter_avversaria):
-        """
-        Genera le statistiche avanzate stimate in base ai dati reali.
-        """
+        """Genera le statistiche avanzate stimate in base ai dati reali."""
         modifier = 1.0
         if filter_campo == "Solo in Casa (per Casa) / Fuori (per TRF)":
             modifier = 1.05
