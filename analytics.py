@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 from scipy.stats import poisson
 import requests
-import streamlit as st
 
 class FootballBettingEngine:
     def __init__(self):
@@ -20,32 +19,21 @@ class FootballBettingEngine:
     def get_supported_competitions(self):
         return list(self.competitions.keys())
 
-    def get_calendar_matches(self, competition_name):
+    def get_calendar_matches(self, competition_name, api_key=None):
         """
-        Scarica in automatico le prossime partite reali tramite API-Football.
-        Se la chiave API non è configurata o c'è un errore di rete, attiva un fallback di sicurezza.
+        Scarica in automatico le prossime partite reali tramite API-Football 
+        usando la chiave fornita dall'utente dall'interfaccia.
         """
         league_id = self.competitions.get(competition_name, 135)
-        
-        # Recupera la chiave API dai Secrets di Streamlit (consigliato) o inseriscila qui sotto
-        api_key = None
-        try:
-            if hasattr(st, "secrets") and "API_FOOTBALL_KEY" in st.secrets:
-                api_key = st.secrets["API_FOOTBALL_KEY"]
-        except Exception:
-            pass
-            
-        # Se preferisci metterla direttamente per testare (sostituisci la stringa):
-        # api_key = "TUA_API_KEY_QUI"
 
         if not api_key:
-            # Fallistico di cortesia se la chiave non è ancora inserita nei Secrets
+            # Fallback se la chiave non è stata inserita nell'input dell'app
             return [
-                {"Giornata": "Configura API Key", "Data": "Oggi", "Casa": "Inserisci API-Football Key", "Trasferta": "Nei Secrets di Streamlit"}
+                {"Giornata": "Attesa API Key", "Data": "Inserisci la tua", "Casa": "API-Football Key", "Trasferta": "nella barra laterale a sinistra"}
             ]
 
         url = "https://api-football-v1.p.rapidapi.com/v3/fixtures"
-        querystring = {"league": str(league_id), "next": "10"} # Prende le prossime 10 partite
+        querystring = {"league": str(league_id), "next": "10"}
         
         headers = {
             "X-RapidAPI-Key": api_key,
@@ -74,9 +62,8 @@ class FootballBettingEngine:
         except Exception as e:
             print(f"Errore connessione API: {e}")
 
-        # Fallback in caso di errore di connessione
         return [
-            {"Giornata": "Turno Corrente", "Data": "In corso", "Casa": "Squadra Casa", "Trasferta": "Squadra Ospite"}
+            {"Giornata": "Errore Connessione", "Data": "Verifica", "Casa": "Controlla la chiave API", "o la connessione di rete": ""}
         ]
 
     def calculate_poisson_1x2(self, lambda_home, lambda_away):
