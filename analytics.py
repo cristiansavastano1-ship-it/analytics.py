@@ -27,7 +27,6 @@ class FootballBettingEngine:
         league_id = self.competitions.get(competition_name, 135)
 
         if not api_key:
-            # Fallback se la chiave non è stata inserita nell'input dell'app
             return [
                 {"Giornata": "Attesa API Key", "Data": "Inserisci la tua", "Casa": "API-Football Key", "Trasferta": "nella barra laterale a sinistra"}
             ]
@@ -63,7 +62,7 @@ class FootballBettingEngine:
             print(f"Errore connessione API: {e}")
 
         return [
-            {"Giornata": "Errore Connessione", "Data": "Verifica", "Casa": "Controlla la chiave API", "o la connessione di rete": ""}
+            {"Giornata": "Errore Connessione", "Data": "Verifica", "Casa": "Controlla la chiave API", "Trasferta": "o la rete"}
         ]
 
     def calculate_poisson_1x2(self, lambda_home, lambda_away):
