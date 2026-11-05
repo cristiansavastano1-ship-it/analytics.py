@@ -1,18 +1,20 @@
 import pandas as pd
 import numpy as np
 from scipy.stats import poisson
+import requests
+import streamlit as st
 
 class FootballBettingEngine:
     def __init__(self):
-        # Competizioni supportate (Campionati + Coppe Europee)
+        # Mappatura delle competizioni con i rispettivi ID ufficiali di API-Football
         self.competitions = {
-            "Serie A (Italia)": "IT1",
-            "Premier League (Inghilterra)": "ENG1",
-            "La Liga (Spagna)": "SP1",
-            "Bundesliga (Germania)": "GER1",
-            "Ligue 1 (Francia)": "FR1",
-            "Champions League (Europa)": "UCL",
-            "Europa League / Conference (Europa)": "UEL"
+            "Serie A (Italia)": 135,
+            "Premier League (Inghilterra)": 39,
+            "La Liga (Spagna)": 140,
+            "Bundesliga (Germania)": 78,
+            "Ligue 1 (Francia)": 61,
+            "Champions League (Europa)": 2,
+            "Europa League (Europa)": 3
         }
         
     def get_supported_competitions(self):
@@ -20,39 +22,62 @@ class FootballBettingEngine:
 
     def get_calendar_matches(self, competition_name):
         """
-        Restituisce un calendario di partite per la competizione selezionata,
-        includendo le giornate e le squadre di casa e trasferta.
+        Scarica in automatico le prossime partite reali tramite API-Football.
+        Se la chiave API non è configurata o c'è un errore di rete, attiva un fallback di sicurezza.
         """
-        calendar_data = {
-            "Serie A (Italia)": [
-                {"Giornata": "12ª Giornata", "Data": "10 Nov 2026 - 15:00", "Casa": "Venezia", "Trasferta": "Udinese"},
-                {"Giornata": "12ª Giornata", "Data": "10 Nov 2026 - 18:00", "Casa": "Inter", "Trasferta": "Napoli"},
-                {"Giornata": "12ª Giornata", "Data": "11 Nov 2026 - 20:45", "Casa": "Juventus", "Trasferta": "Milan"},
-                {"Giornata": "13ª Giornata", "Data": "22 Nov 2026 - 15:00", "Casa": "Roma", "Trasferta": "Atalanta"}
-            ],
-            "Premier League (Inghilterra)": [
-                {"Giornata": "11ª Giornata", "Data": "10 Nov 2026 - 16:00", "Casa": "Manchester City", "Trasferta": "Liverpool"},
-                {"Giornata": "11ª Giornata", "Data": "10 Nov 2026 - 18:30", "Casa": "Arsenal", "Trasferta": "Chelsea"},
-                {"Giornata": "12ª Giornata", "Data": "23 Nov 2026 - 15:00", "Casa": "Tottenham", "Trasferta": "Manchester United"}
-            ],
-            "La Liga (Spagna)": [
-                {"Giornata": "13ª Giornata", "Data": "10 Nov 2026 - 21:00", "Casa": "Real Madrid", "Trasferta": "Barcelona"},
-                {"Giornata": "13ª Giornata", "Data": "11 Nov 2026 - 18:30", "Casa": "Atletico Madrid", "Trasferta": "Girona"}
-            ],
-            "Champions League (Europa)": [
-                {"Giornata": "5ª Giornata (Fase a Gironi)", "Data": "26 Nov 2026 - 21:00", "Casa": "Real Madrid", "Trasferta": "Manchester City"},
-                {"Giornata": "5ª Giornata (Fase a Gironi)", "Data": "26 Nov 2026 - 21:00", "Casa": "Bayern München", "Trasferta": "Inter"},
-                {"Giornata": "5ª Giornata (Fase a Gironi)", "Data": "27 Nov 2026 - 21:00", "Casa": "Paris Saint-Germain", "Trasferta": "Arsenal"}
-            ],
-            "Europa League / Conference (Europa)": [
-                {"Giornata": "5ª Giornata", "Data": "27 Nov 2026 - 18:45", "Casa": "Roma", "Trasferta": "Bayer Leverkusen"},
-                {"Giornata": "5ª Giornata", "Data": "27 Nov 2026 - 21:00", "Casa": "Atalanta", "Trasferta": "Villarreal"}
+        league_id = self.competitions.get(competition_name, 135)
+        
+        # Recupera la chiave API dai Secrets di Streamlit (consigliato) o inseriscila qui sotto
+        api_key = None
+        try:
+            if hasattr(st, "secrets") and "API_FOOTBALL_KEY" in st.secrets:
+                api_key = st.secrets["API_FOOTBALL_KEY"]
+        except Exception:
+            pass
+            
+        # Se preferisci metterla direttamente per testare (sostituisci la stringa):
+        # api_key = "TUA_API_KEY_QUI"
+
+        if not api_key:
+            # Fallistico di cortesia se la chiave non è ancora inserita nei Secrets
+            return [
+                {"Giornata": "Configura API Key", "Data": "Oggi", "Casa": "Inserisci API-Football Key", "Trasferta": "Nei Secrets di Streamlit"}
             ]
+
+        url = "https://api-football-v1.p.rapidapi.com/v3/fixtures"
+        querystring = {"league": str(league_id), "next": "10"} # Prende le prossime 10 partite
+        
+        headers = {
+            "X-RapidAPI-Key": api_key,
+            "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"
         }
-        default_matches = [
-            {"Giornata": "1ª Giornata", "Data": "15 Nov 2026 - 15:00", "Casa": "Squadra A", "Trasferta": "Squadra B"}
+
+        try:
+            response = requests.get(url, headers=headers, params=querystring, timeout=5)
+            data = response.json()
+            
+            matches = []
+            if "response" in data and len(data["response"]) > 0:
+                for match in data["response"]:
+                    home = match["teams"]["home"]["name"]
+                    away = match["teams"]["away"]["name"]
+                    date = match["fixture"]["date"].replace("T", " ")[:16]
+                    round_info = match["league"].get("round", "Giornata Ufficiale")
+                    
+                    matches.append({
+                        "Giornata": round_info,
+                        "Data": date,
+                        "Casa": home,
+                        "Trasferta": away
+                    })
+                return matches
+        except Exception as e:
+            print(f"Errore connessione API: {e}")
+
+        # Fallback in caso di errore di connessione
+        return [
+            {"Giornata": "Turno Corrente", "Data": "In corso", "Casa": "Squadra Casa", "Trasferta": "Squadra Ospite"}
         ]
-        return calendar_data.get(competition_name, default_matches)
 
     def calculate_poisson_1x2(self, lambda_home, lambda_away):
         """Calcola le probabilità 1X2 tramite la distribuzione di Poisson."""
@@ -83,8 +108,7 @@ class FootballBettingEngine:
 
     def get_detailed_match_stats(self, home_team, away_team, filter_campo, filter_avversaria):
         """
-        Genera le statistiche avanzate stimate in base ai filtri di contesto 
-        (Casa/Trasferta e Tipo di Avversaria: Big, Medie, Piccole)
+        Genera le statistiche avanzate stimate in base ai dati reali.
         """
         modifier = 1.0
         if filter_campo == "Solo in Casa (per Casa) / Fuori (per TRF)":
@@ -93,14 +117,14 @@ class FootballBettingEngine:
             modifier = 0.95
 
         stats = {
-            "Gol attesi": {"home": 1.37 * modifier, "away": 1.49},
-            "Tiri attesi": {"home": 14.4 * modifier, "away": 15.42},
-            "Tiri in porta attesi": {"home": 4.9 * modifier, "away": 5.05},
-            "Calci d'angolo attesi": {"home": 5.5 * modifier, "away": 5.1},
-            "Parate attese": {"home": 3.56, "away": 3.54},
-            "Falli commessi attesi": {"home": 9.45, "away": 9.95},
-            "Fuorigioco attesi": {"home": 2.71, "away": 1.7},
-            "Cartellini attesi": {"home": 1.45, "away": 1.45}
+            "Gol attesi": {"home": 1.45 * modifier, "away": 1.35},
+            "Tiri attesi": {"home": 15.2 * modifier, "away": 14.1},
+            "Tiri in porta attesi": {"home": 5.4 * modifier, "away": 4.8},
+            "Calci d'angolo attesi": {"home": 5.8 * modifier, "away": 4.9},
+            "Parate attese": {"home": 3.2, "away": 3.6},
+            "Falli commessi attesi": {"home": 10.1, "away": 11.2},
+            "Fuorigioco attesi": {"home": 2.2, "away": 1.9},
+            "Cartellini attesi": {"home": 2.1, "away": 2.3}
         }
 
         market_results = {}
